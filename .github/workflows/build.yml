@@ -26,10 +26,11 @@ jobs:
           cache: gradle
 
       - name: Build debug APK
-        # Explicitly setting the working directory to ensure Gradle finds settings.gradle
-        working-directory: .
+        # We use $GITHUB_WORKSPACE to ensure Java finds the JAR and the project files
         run: |
-          java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain clean assembleDebug --stacktrace
+          java -cp "$GITHUB_WORKSPACE/gradle/wrapper/gradle-wrapper.jar" \
+               org.gradle.wrapper.GradleWrapperMain \
+               clean assembleDebug --stacktrace
 
       # ── Signed release (only on tag push) ───────────────────────────────
       - name: Decode keystore
@@ -39,14 +40,15 @@ jobs:
 
       - name: Build signed release APK
         if: startsWith(github.ref, 'refs/tags/')
-        working-directory: .
+        run: |
+          java -cp "$GITHUB_WORKSPACE/gradle/wrapper/gradle-wrapper.jar" \
+               org.gradle.wrapper.GradleWrapperMain \
+               assembleRelease --stacktrace
         env:
           KEYSTORE_FILE:     app/release.keystore
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS:         ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD:      ${{ secrets.KEY_PASSWORD }}
-        run: |
-          java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain assembleRelease --stacktrace
 
       # ── Upload debug APK ─────────────────────────────────────────────────
       - name: Upload debug APK
@@ -54,7 +56,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: GpaCalculator-debug
-          path: app/build/outputs/apk/debug/*.apk
+          # Search everywhere for an APK to be safe
+          path: "**/build/outputs/apk/debug/*.apk"
           retention-days: 30
 
       # ── Upload release APK + create GitHub Release ───────────────────────
@@ -63,14 +66,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: GpaCalculator-release
-          path: app/build/outputs/apk/release/*.apk
+          path: "**/build/outputs/apk/release/*.apk"
           retention-days: 90
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/release/*.apk
+          files: "**/build/outputs/apk/release/*.apk"
           name: "GPA Calculator ${{ github.ref_name }}"
           body: |
             ## GPA Calculator ${{ github.ref_name }}
